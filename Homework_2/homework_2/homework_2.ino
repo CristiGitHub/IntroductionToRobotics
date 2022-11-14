@@ -1,194 +1,162 @@
-// declare all the joystick pins
-const int pinSW = 2; // digital pin connected to switch output
-const int pinX = A0; // A0 - analog pin connected to X output
-const int pinY = A1; // A1 - analog pin connected to Y output
+const int buttonPin = 2;
+const int buzzPin = 11;
+const int carRedColorPin = 7;
+const int carYellowColorPin = 3;
+const int carGreenColorPin = 4;
+const int passerRedColorPin = 5;
+const int passerGreenColorPin = 6;
 
-// declare all the segments pins
-const int pinA = 4;
-const int pinB = 5;
-const int pinC = 6;
-const int pinD = 7;
-const int pinE = 8;
-const int pinF = 9;
-const int pinG = 10;
-const int pinDP = 11;
 
-const int segSize = 8;
 
-bool buttonState = false; 
-unsigned long long lastDebounceTime = 0;
+const int debounceOffset = 1000;
+const int colorChangeOffset = 8000;
+const int colorTimer[] = {2000,4000,14000,18000};
 
-bool readButtonCurrentState = false;
-int index = 0;
+const int soundCrossingTimer = 500;
+const int blinkCrossingTimer = 500;
+const int blinkingStartingPhase = 3000;
 
-unsigned long long lastTimerFromBlink = 0;
-const int blinkOffset = 500;
-const int resetTimePress = 2000;
-bool blinkState = true;
-// modify if you have common anode
-bool commonAnode = false; 
 
-int debounceDelay = 30;
-bool lastChangableState = true;
-bool lastStableState = true;
-bool commandInUse = false;
-
-const int noOfDigits = 10;
-byte state = HIGH;
-byte dpState = LOW;
-byte swState = LOW;
-
-byte lastSwState = LOW;
-int xValue = 0;
-int yValue = 0;
-
-bool joyMovedX = false;
-bool joyMovedY = false;
-
-int digit = 0;
-int minThreshold = 400;
-int maxThreshold = 600;
-
-int segments[segSize] = { 
-  pinA, pinB, pinC, pinD, pinE, pinF, pinG, pinDP
-};
-
-int nextPosition = 0;
-int currentSegmentPosition = pinA;
-
-int segmentsNeighboars[segSize][5]={
-  {0   ,  pinG, pinF, pinB ,0},
-  {pinA,  pinG, pinF, 0    ,0},
-  {pinG,  pinD, pinE, pinDP , 0},
-  {pinG,  0   , pinE, pinC , 0},
-  {pinG,  pinD, 0,    pinC , 0},
-  {pinA,  pinG, 0,    pinB , 0},
-  {pinA,  pinD, 0,  0 , 0},
-  {0 , 0 , pinC , 0 , 0}
-};
+bool isChangingColor = false;
+unsigned long long lastInterruptionCallTime = 0;
+unsigned long long lastColorChangeTime = 0;
+int buttonState =HIGH;
+int curentCarColor = 1;
+bool lastTone = false;
+unsigned long long lastToneTimer = 0;
+unsigned long long fromLastBlinkCrossingTimer = 0;
+bool lastBlinkPhase = false;
+bool blinkerSwitcher = true;
 
 void setup() {
-  // initialize all the pins
-  for (int i = 0; i < segSize; i++) {
-    pinMode(segments[i], OUTPUT);
-  }
-  pinMode(pinSW, INPUT_PULLUP);
-  if (commonAnode == true) {
-    state = !state;
-  }
+  // put your setup code here, to run once:
   Serial.begin(9600);
-  attachInterrupt(digitalPinToInterrupt(pinSW),blink, CHANGE);
+pinMode(buttonPin,INPUT_PULLUP);
+carColorChanger();
+attachInterrupt(digitalPinToInterrupt(buttonPin),blink, CHANGE);
 }
 
 void loop() {
-  nextPosition = -1;
-//Serial.println(currentSegmentPosition);
-for(int i = 0 ; i < segSize ; ++i){
-  if(i+4 !=currentSegmentPosition){
-    digitalWrite(i+4,segmentsNeighboars[i][4]);
+  if(isChangingColor){
+  colorChangerTimer();
+  carColorChanger();
+  safeCrossingSound();
   }
-}
-blinkSegmentSelector();
-xValueInput();
-yValueInput();
-if(nextPosition!=-1){
-  if(segmentsNeighboars[currentSegmentPosition-4][nextPosition]>0){
-  currentSegmentPosition=segmentsNeighboars[currentSegmentPosition-4][nextPosition];
-  }
-}
-} 
-
-
-
-
-void blinkSegmentSelector(){
-  if(millis()-lastTimerFromBlink>blinkOffset){
-  digitalWrite(currentSegmentPosition,blinkState);
-  blinkState=!blinkState;
-  lastTimerFromBlink=millis();
-  }
+  if(buttonState == LOW && !isChangingColor)
+{
+  lastColorChangeTime = millis();
+  buttonState = HIGH;
+  isChangingColor = true;
 }
 
-void xValueInput(){
-  xValue = analogRead(pinX);
-  if ( minThreshold <= xValue && xValue <= maxThreshold) {
-    joyMovedX = false;
-  }
-
-  if (xValue > maxThreshold && joyMovedX == false) {
-    nextPosition=0;
-    joyMovedX = true;
-  }
-
-  if (xValue < minThreshold && joyMovedX == false) {
-    nextPosition=1;
-    joyMovedX = true;
-  }
-}
-
-void yValueInput(){
-  yValue = analogRead(pinY);
-  if ( minThreshold <= yValue && yValue <= maxThreshold) {
-    joyMovedY = false;
-  }
-
-  if (yValue > maxThreshold && joyMovedY == false) {
-    nextPosition=3;
-    joyMovedY = true;
-  }
-
-  if (yValue < minThreshold && joyMovedY == false) {
-   nextPosition=2;
-    joyMovedY = true;
-  }
 }
 
 
-void lightUpSegmnet(){
-  Serial.println("salut");
-  segmentsNeighboars[currentSegmentPosition-4][4]=(segmentsNeighboars[currentSegmentPosition-4][4]+1)%2;
-}
+void carColorChanger(){
 
-void resetLightState(){
-  for (int i=0; i<segSize; i++) {
-    digitalWrite(i+4,0);
-    segmentsNeighboars[i][4]=0;
+if(curentCarColor == 3){
+  digitalWrite( carRedColorPin,HIGH);
+  if(millis()-lastColorChangeTime + blinkingStartingPhase>=colorTimer[2]){
+    blinkingCrossing();
   }
+  else{
+  digitalWrite( passerGreenColorPin , HIGH);
+  }
+  digitalWrite( passerRedColorPin , LOW);
+  digitalWrite( carGreenColorPin,LOW);
+  digitalWrite(carYellowColorPin,LOW);
+}
+if(curentCarColor == 2){
+  digitalWrite( carRedColorPin,LOW);
+  digitalWrite( carGreenColorPin,LOW);
+  digitalWrite(carYellowColorPin,HIGH);
+}
+if(curentCarColor == 1){
+  digitalWrite(carYellowColorPin,LOW);
+  digitalWrite( carRedColorPin,LOW);
+  digitalWrite( carGreenColorPin,HIGH);
+  digitalWrite( passerGreenColorPin , LOW);
+  digitalWrite( passerRedColorPin , HIGH);
+
+}
+}
+
+void colorChangerTimer(){
+  unsigned long long currentCarColorTimer=millis() - lastColorChangeTime;
+
+if( currentCarColorTimer > colorTimer[0] && currentCarColorTimer <= colorTimer[1] && isChangingColor){
+  curentCarColor = 2;
+}
+if( currentCarColorTimer > colorTimer[1] && currentCarColorTimer <= colorTimer[2] && isChangingColor){
+  curentCarColor = 3;
+}
+if( currentCarColorTimer > colorTimer[2] && currentCarColorTimer <= colorTimer[3] && isChangingColor){
+  curentCarColor = 1;
+}
+if( currentCarColorTimer > colorTimer[3] ){
+    isChangingColor=false;
+}
+
 }
 
 
-void blink(){
-  commandInUse = false;
-  readButtonCurrentState = digitalRead(pinSW);
-  if (readButtonCurrentState != lastChangableState) {
-     if ((millis() - lastDebounceTime) > debounceDelay) {
-    if (lastStableState == LOW && readButtonCurrentState == HIGH){
-      if(millis() -lastDebounceTime >  resetTimePress){
-        resetLightState();
-      }
-      else
-      {
-        lightUpSegmnet();
-      }
-      commandInUse =true;
+void safeCrossingSound(){
+  if(millis()-lastColorChangeTime > colorTimer[1] && millis()-lastColorChangeTime  <= colorTimer[2] && isChangingColor){
+  if(!lastTone){
+    lastToneTimer = millis();
+    lastTone=!lastTone;
+    noTone(buzzPin);
+  }
+    if(lastTone && millis() - lastToneTimer > soundCrossingTimer){
+    tone(buzzPin,330);  
+    lastTone=!lastTone;
     }
-    lastStableState = readButtonCurrentState;
   }
+  else{
+    noTone(buzzPin);
+  }
+}
+void blinkingCrossing(){
+  if(millis()-lastColorChangeTime > colorTimer[1] && millis()-lastColorChangeTime  <= colorTimer[2] && isChangingColor)
+    {
+      if(!lastBlinkPhase){
+      fromLastBlinkCrossingTimer = millis();
+      lastBlinkPhase =!lastBlinkPhase;
+      blinkerSwitcher= !blinkerSwitcher;    
+    }
+    if(lastBlinkPhase && millis() - fromLastBlinkCrossingTimer > blinkCrossingTimer){
+      digitalWrite( passerGreenColorPin , blinkerSwitcher);
+      lastBlinkPhase =!lastBlinkPhase;
+    }
+  }
+  else{
+      digitalWrite( passerGreenColorPin , LOW);
+  }
+
+
+}
+
+int debounceDelay = 30;
+unsigned long long lastDebounceTime = 0;
+bool lastChangableState = true;
+bool lastStableState = true;
+bool readButtonCurrentState = false;
+void blink(){
+  if(millis()-lastInterruptionCallTime > debounceOffset && !isChangingColor){
+  buttonState=!buttonState;
+  lastInterruptionCallTime= millis();}
+
+
+  readButtonCurrentState = digitalRead(buttonPin);
+  if (readButtonCurrentState != lastChangableState) {
     lastDebounceTime = millis();
     lastChangableState = readButtonCurrentState;
   }
 
-      if ((millis() - lastDebounceTime) > debounceDelay && !commandInUse) {
+  if ((millis() - lastDebounceTime) > debounceDelay) {
     if (lastStableState == LOW && readButtonCurrentState == HIGH){
-      if(millis() -lastDebounceTime >  resetTimePress){
-        resetLightState();
-      }
-      else
-      {
-        lightUpSegmnet();
-      }
+      buttonState=!buttonState;
     }
     lastStableState = readButtonCurrentState;
   }
 }
-
