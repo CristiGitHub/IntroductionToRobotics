@@ -1,5 +1,6 @@
 #include "LedControl.h"  //  need the library
 #include <LiquidCrystal.h>
+#include <EEPROM.h>
 const byte RS = 9;
 const byte enable = 8;
 const byte d4 = 7;
@@ -60,12 +61,14 @@ byte matrix[matrixSize][matrixSize] = {
 };
 
 int currentMenuPosition = 0;
-int currentPhase = 0;
+int currentPhase = -3;
 bool backMenuPressed = false;
 const int maxValue = 16;
 const int minValue = 0;
 int currentSettings[] = { 0, 0, 0, 0 };
 int settingAdjustmentVariable = 0;
+int lastDisplayedScore=-2;
+int currentScore =-1;
 
 void setup() {
   Serial.begin(9600);
@@ -94,7 +97,13 @@ void loop() {
     
     if(isFoodEaten){
       generateFood();
+      currentScore+=1;
       isFoodEaten=false;
+    }
+
+    if(currentScore!=lastDisplayedScore){
+      displayCurrentScore();
+      lastDisplayedScore=currentScore;
     }
 
     if (millis() - lastMoved > moveInterval) {
@@ -120,11 +129,17 @@ byte customChar[] = {
   B00000
 };
 
+const String welcomeScreen[] = {"Welcome to my", "Snake"};
+const String howToUseContinueScreen[] = {"Short click", "for continue"};
+const String howToUseBackScreen[]={"Long click","for back"};
 const String menuOptionsString[] = { "New Game", "Score Board", "Settings", "About", "How to play" };
 const String settingsMenu[] = { "Enter Name", "Starting Level", "LCD contrast", "LCD brightness", "Matrix brightness", "Sounds" };
-const String scorBoardMenu[] = { "eu 1000", "eu 10", "eu 9", "eu 8", "eu 7", "eu 6" };
+String scorBoardMenu[] = { "eu 1000", "eu 10", "eu 9", "eu 8", "eu 7", "eu 6" };
 const String aboutText[] = { "Salut eu sunt", "Lefter Ioan", "Cristian si", "asta e Snake-ul", "meu enjoy" };
 const String howToPlayText[] = { "Use the Joytick", "To Move and", "try to collect", "the food", "to incress the", "size" };
+const int sizeWelcomeScreen =2;
+const int sizeHowToUseContinueScreen = 2;
+const int sizeHowToUseBackScreen = 2;
 const int sizeMenuOption = 5;
 const int sizeSettingsMenu = 6;
 const int sizeScorBoardMenu = 6;
@@ -137,8 +152,27 @@ bool navigationMoved = false;
 int genRow=0;
 int genCol=0;
 
-void displayCurrentMenu() {
+void displayCurrentScore(){
 
+  lcd.clear();
+    lcd.setCursor(0, 0);
+    //lcd.createChar(0, customChar);
+    lcd.print("  Current Score:");
+    lcd.setCursor(0, 1);
+    lcd.print("    ");
+    lcd.print(currentScore);
+}
+
+void displayCurrentMenu() {
+   if (currentPhase == -3) {
+    menuDisplay(welcomeScreen, sizeWelcomeScreen);
+  }
+   if (currentPhase == -2) {
+    menuDisplay(howToUseContinueScreen, sizeHowToUseContinueScreen);
+  }
+   if (currentPhase == -1) {
+    menuDisplay(howToUseBackScreen, sizeHowToUseBackScreen);
+  }
   if (currentPhase == 0) {
     menuDisplay(menuOptionsString, sizeMenuOption);
   }
@@ -217,6 +251,24 @@ void updateMatrix() {
     }
   }
 }
+
+
+// void readStringArray(String *array, int size, int eepromAddress){
+// for(int i = 0; i < size; i++){
+// //Read from EEPROM
+// array[i] = EEPROM.readString(eepromAddress);
+// //Update EEPROM address
+// eepromAddress += array[i].length() + 1; //+1 for the null terminator
+// }
+// }
+// //Write to EEPROM
+// void writeStringArray(String *array, int size, int eepromAddress){
+// for(int i = 0; i < size; i++){
+// EEPROM.writeString(eepromAddress, array[i]);
+// //Update EEPROM address
+// eepromAddress += array[i].length() + 1; //+1 for the null terminator
+// }
+// }
 
 
 void updatePositions() {
@@ -306,26 +358,50 @@ void navigateFunction(int size) {
 }
 
 void clickMenu() {
+  if (currentPhase == -3 ) {
+    currentPhase = -2;
+    currentMenuPosition = 0;
+    lastMeniuOption=-1;
+  }
+  else
+  if (currentPhase == -2 ) {
+    currentPhase = -1;
+    currentMenuPosition = 0;
+    lastMeniuOption=-1;
+  }
+  else
+ if (currentPhase == -1 ) {
+    currentPhase = 0;
+    currentMenuPosition = 0;
+    lastMeniuOption=-1;
+  }
+  else
   if (currentPhase == 0 && currentMenuPosition == 0) {
     currentPhase = 5;
+    updateMatrix();
     currentMenuPosition = 0;
   }
+  else
   if (currentPhase == 0 && currentMenuPosition == 1) {
     currentPhase = currentMenuPosition;
     currentMenuPosition = 0;
   }
+  else
   if (currentPhase == 0 && currentMenuPosition == 2) {
     currentPhase = currentMenuPosition;
     currentMenuPosition = 0;
   }
+  else
   if (currentPhase == 0 && currentMenuPosition == 3) {
     currentPhase = currentMenuPosition;
     currentMenuPosition = 0;
   }
+  else
   if (currentPhase == 0 && currentMenuPosition == 4) {
     currentPhase = currentMenuPosition;
     currentMenuPosition = 0;
   }
+  else
   if (currentPhase == 2 && currentMenuPosition >= 1 && currentMenuPosition <= 4 && !inSettingsAdjustment) {
     settingAdjustmentVariable = currentMenuPosition - 1;
     currentMenuPosition = currentSettings[currentMenuPosition - 1];
@@ -341,6 +417,10 @@ void clickMenu() {
 }
 
 void backPress() {
+  if(currentPhase<=0 && currentPhase >-3){
+  currentPhase+=-1;
+  currentMenuPosition = 0;
+  }
   if (currentPhase == 1 || currentPhase == 2 || currentPhase == 3 || currentPhase == 4) {
     if (inSettingsAdjustment && currentPhase == 2) {
       currentMenuPosition = 0;
@@ -350,6 +430,11 @@ void backPress() {
       currentPhase = 0;
       currentMenuPosition = 0;
     }
+  }
+  if(currentPhase==5){
+    currentPhase=0;
+    currentMenuPosition=0;
+  lc.clearDisplay(0);    
   }
   backMenuPressed = true;
   displayCurrentMenu();
