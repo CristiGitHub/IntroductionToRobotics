@@ -433,6 +433,10 @@ void backPress() {
   }
   if(currentPhase==5){
     currentPhase=0;
+    isFoodEaten=true;
+    matrix[genRow][genCol] = 0;
+     lastDisplayedScore=-2;
+     currentScore =-1;
     currentMenuPosition=0;
   lc.clearDisplay(0);    
   }
