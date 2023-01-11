@@ -9,6 +9,9 @@ https://www.youtube.com/shorts/OvbDtjponro
 
 ### Homework #4
 
+
+I created a vector which stores all the symbols which can be displayed on the 7-segment ( From 0 - 9 and from A to F) to easyly display each number. Also the last digit will represent the dp and it will help us to know exactly on which digit we are. 
+
 -**Components**:a  joystick,  a  4  digit  7-segment  display,  a  74hc595  shift register
 
 
