@@ -4,6 +4,9 @@ https://drive.google.com/file/d/1e6mbJDclXZRgu890jJ8H6zs3UoJFygpE/view?usp=share
 
 ![Alt text](media/poza.jpeg?raw=true "Circuit Board")
 
+
+I created a function which take the input from the joystick on x and y axis and it also the button which also uses debounce function for the input. I also decleared a matrix which will help with the movement through the segments
+
 **Components**:  1  7-segment  display,  1  joystick,  resistors  and  wires  (perlogic)
 
 General description:You will use the joystick to control the position ofthe segment and ”draw” on the display.  The movement between segmentsshould be natural (meaning they should jump from the current positiononly to neighbors, but without passing through ”walls”.
